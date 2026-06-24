@@ -229,4 +229,3 @@ Unlock-ADAccount -Identity dkim
 * ⬜ Day 6 — NTFS/Share Permissions & Least Privilege
 * ⬜ Day 7 — Phase 1 Capstone
 
-Type 'GENERATE DAY 5 LAB' when ready to continue.
