@@ -1,0 +1,4 @@
+FirstName,LastName,Department,JobTitle,OU
+Priya,Sharma,IT,Systems Analyst,"OU=IT,OU=Corp,DC=Bhatt,DC=com"
+Rahul,Mehta,Finance,Finance Analyst,"OU=Finance,OU=Corp,DC=Bhatt,DC=com"
+Ananya,Iyer,IT,Service Desk,"OU=IT,OU=Corp,DC=Bhatt,DC=com"
