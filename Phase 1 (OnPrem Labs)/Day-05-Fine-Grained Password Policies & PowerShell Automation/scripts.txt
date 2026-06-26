@@ -1,114 +1,167 @@
+Build the Full Provisioning Script
 
-# Bulk-Create-Users.ps1 — Day 5 JML Joiner Automation
-# Lab: Bhatt.com | Author: IAMLab
+**Save as** `C:\IAMLab\Day5\Invoke-BulkJoiner.ps1`
 
-$csvPath  = "C:\IAMLab\Day5\new_hires.csv"
-$logPath  = "C:\IAMLab\Day5\Logs\joiner_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
-$defaultPassword = ConvertTo-SecureString "Welcome@Bhatt1!" -AsPlainText -Force
+```powershell
+<#
+.SYNOPSIS
+    Bulk JML Joiner Script — Bhatt Corp IAM Lab Day 5
+.DESCRIPTION
+    Reads HR CSV, provisions AD users in correct OUs,
+    assigns department groups, adds to PSO group,
+    and writes a structured audit log.
+#>
 
-# Ensure log dir exists
-New-Item -ItemType Directory -Path "C:\IAMLab\Day5\Logs" -Force | Out-Null
+# ── Configuration Block ──────────────────────────────────────────
+$CsvPath     = "C:\IAMLab\Day5\new_joiners.csv"
+$LogPath     = "C:\IAMLab\Day5\Logs\JoinerLog_$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
+$DefaultPass = ConvertTo-SecureString "Welcome@Bhatt1!" -AsPlainText -Force
+$Domain      = "DC=Bhatt,DC=com"
+$BaseCorp    = "OU=BHATT-CORP,$Domain"
 
-$hires = Import-Csv -Path $csvPath
+# Department → OU and Group mappings
+$DeptConfig = @{
+    "IT"      = @{ OU = "OU=Users,OU=IT,$BaseCorp";      Group = "G-IT-Support"        }
+    "Finance" = @{ OU = "OU=Users,OU=Finance,$BaseCorp";  Group = "G-Finance-ReadOnly"  }
+    "Sales"   = @{ OU = "OU=Users,OU=Sales,$BaseCorp";    Group = "G-Sales-General"     }
+}
 
-foreach ($hire in $hires) {
+# ── Logging Function ─────────────────────────────────────────────
+function Write-Log {
+    param([string]$Message, [string]$Level = "INFO")
+    $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $Entry = "[$Timestamp] [$Level] $Message"
+    Add-Content -Path $LogPath -Value $Entry
+    Write-Host $Entry
+}
 
-    $samAccount = ($hire.FirstName.Substring(0,1) + $hire.LastName).ToLower()
-    $upn        = "$samAccount@Bhatt.com"
-    $fullName   = "$($hire.FirstName) $($hire.LastName)"
+# ── Script Start ─────────────────────────────────────────────────
+Write-Log "========== Bulk Joiner Script Started =========="
+Write-Log "CSV Source: $CsvPath"
 
+# Validate CSV exists
+if (-not (Test-Path $CsvPath)) {
+    Write-Log "ERROR: CSV not found at $CsvPath. Aborting." -Level "ERROR"
+    exit 1
+}
+
+$Joiners = Import-Csv -Path $CsvPath
+Write-Log "Records to process: $($Joiners.Count)"
+
+$Success = 0
+$Failed  = 0
+
+foreach ($User in $Joiners) {
+
+    # ── Derive Identity Attributes ────────────────────────────────
+    $FirstName   = $User.FirstName.Trim()
+    $LastName    = $User.LastName.Trim()
+    $Department  = $User.Department.Trim()
+    $JobTitle    = $User.JobTitle.Trim()
+    
+    $SAM        = ($FirstName.Substring(0,1) + $LastName).ToLower()   # psharma
+    $UPN        = "$($FirstName.ToLower()).$($LastName.ToLower())@Bhatt.com"
+    $DisplayName = "$FirstName $LastName"
+
+    Write-Log "Processing: $DisplayName | SAM: $SAM | Dept: $Department"
+
+    # ── Validate Department Mapping ───────────────────────────────
+    if (-not $DeptConfig.ContainsKey($Department)) {
+        Write-Log "SKIP: Unknown department '$Department' for $DisplayName" -Level "WARN"
+        $Failed++
+        continue
+    }
+
+    $TargetOU    = $DeptConfig[$Department].OU
+    $TargetGroup = $DeptConfig[$Department].Group
+
+    # ── Check for Duplicate sAMAccountName ───────────────────────
+    $Existing = Get-ADUser -Filter {SamAccountName -eq $SAM} -ErrorAction SilentlyContinue
+    if ($Existing) {
+        Write-Log "SKIP: User $SAM already exists in AD." -Level "WARN"
+        $Failed++
+        continue
+    }
+
+    # ── Create the AD User ────────────────────────────────────────
     try {
         New-ADUser `
-            -Name              $fullName `
-            -GivenName         $hire.FirstName `
-            -Surname           $hire.LastName `
-            -SamAccountName    $samAccount `
-            -UserPrincipalName $upn `
-            -Department        $hire.Department `
-            -Title             $hire.JobTitle `
-            -Path              $hire.OU `
-            -AccountPassword   $defaultPassword `
+            -Name              $DisplayName `
+            -GivenName         $FirstName `
+            -Surname           $LastName `
+            -SamAccountName    $SAM `
+            -UserPrincipalName $UPN `
+            -DisplayName       $DisplayName `
+            -Department        $Department `
+            -Title             $JobTitle `
+            -Path              $TargetOU `
+            -AccountPassword   $DefaultPass `
             -ChangePasswordAtLogon $true `
             -Enabled           $true
 
-        $msg = "[$(Get-Date -Format 'HH:mm:ss')] CREATED: $fullName | $samAccount | $($hire.OU)"
-        Write-Host $msg -ForegroundColor Green
-        Add-Content -Path $logPath -Value $msg
+        Write-Log "CREATED: $DisplayName ($SAM) in $TargetOU"
+
+        # ── Assign Department Group ───────────────────────────────
+        Add-ADGroupMember -Identity $TargetGroup -Members $SAM
+        Write-Log "GROUP: $SAM added to $TargetGroup"
+
+        # ── Assign PSO Standard Users Group ──────────────────────
+        Add-ADGroupMember -Identity "G-PSO-StandardUsers" -Members $SAM
+        Write-Log "PSO: $SAM added to G-PSO-StandardUsers"
+
+        $Success++
 
     } catch {
-        $err = "[$(Get-Date -Format 'HH:mm:ss')] ERROR: $fullName | $($_.Exception.Message)"
-        Write-Host $err -ForegroundColor Red
-        Add-Content -Path $logPath -Value $err
+        Write-Log "FAILED: Could not create $DisplayName. Error: $($_.Exception.Message)" -Level "ERROR"
+        $Failed++
     }
 }
 
-Write-Host "`nProvisioning complete. Log: $logPath"
+# ── Summary ───────────────────────────────────────────────────────
+Write-Log "========== Run Complete =========="
+Write-Log "Succeeded : $Success"
+Write-Log "Failed    : $Failed"
+Write-Log "Log saved : $LogPath"
+```
+
+---
+
+#### Step C3 — Execute the Script
+
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+& "C:\IAMLab\Day5\Invoke-BulkJoiner.ps1"
+```
 
 
 
 
+#### Step C4 — Verification Battery
 
+**Verify all users were created:**
+```powershell
+Get-ADUser -Filter * -SearchBase "OU=BHATT-CORP,DC=Bhatt,DC=com" `
+    -Properties Department, Title | 
+    Where-Object {$_.Name -ne "Administrator"} |
+    Select-Object Name, SamAccountName, Department, Title | 
+    Format-Table -AutoSize
+```
 
+**Verify group memberships:**
+```powershell
+Get-ADGroupMember -Identity "G-IT-Support" | Select-Object Name, SamAccountName
+Get-ADGroupMember -Identity "G-PSO-StandardUsers" | Select-Object Name, SamAccountName
+```
 
+**Verify PSO is applying to a provisioned user:**
+```powershell
+Get-ADUserResultantPasswordPolicy -Identity "psharma"
+```
+> **Expected:** Returns `PSO-StandardUsers` with `MinPasswordLength: 12`
 
-# Move-User.ps1 — Mover automation (department transfer)
-# Scenario: Priya Sharma moves from IT to Finance
+**Review the audit log:**
+```powershell
+Get-Content "C:\IAMLab\Day5\Logs\JoinerLog_*.txt" | Select-Object -Last 20
+```
 
-param(
-    [string]$SamAccount   = "psharma",
-    [string]$NewOU        = "OU=Finance,OU=Corp,DC=Bhatt,DC=com",
-    [string]$NewTitle     = "Senior Finance Analyst",
-    [string]$NewDept      = "Finance",
-    [string]$RemoveGroup  = "",        # Optional: remove from old dept group
-    [string]$AddGroup     = ""         # Optional: add to new dept group
-)
-
-$user = Get-ADUser -Identity $SamAccount -Properties DistinguishedName
-
-# Update attributes
-Set-ADUser -Identity $SamAccount -Title $NewTitle -Department $NewDept
-
-# Move to new OU
-Move-ADObject -Identity $user.DistinguishedName -TargetPath $NewOU
-
-# Group membership update (if supplied)
-if ($RemoveGroup) { Remove-ADGroupMember -Identity $RemoveGroup -Members $SamAccount -Confirm:$false }
-if ($AddGroup)    { Add-ADGroupMember    -Identity $AddGroup    -Members $SamAccount }
-
-Write-Host "MOVED: $SamAccount → $NewOU | Title: $NewTitle" -ForegroundColor Cyan
-
-
-
-
-
-
-# Disable-Leaver.ps1 — Leaver automation (offboarding)
-
-param(
-    [string]$SamAccount = "rmehta",
-    [string]$DisabledOU = "OU=Disabled,DC=Bhatt,DC=com"
-)
-
-$user = Get-ADUser -Identity $SamAccount `
-    -Properties MemberOf, DistinguishedName, Description
-
-# 1. Disable account
-Disable-ADAccount -Identity $SamAccount
-
-# 2. Strip all group memberships (skip primary group — Domain Users)
-foreach ($group in $user.MemberOf) {
-    try {
-        Remove-ADGroupMember -Identity $group -Members $SamAccount -Confirm:$false
-    } catch {
-        Write-Warning "Could not remove from $group : $($_.Exception.Message)"
-    }
-}
-
-# 3. Update description with offboarding date
-$note = "DISABLED $(Get-Date -Format 'yyyy-MM-dd') | Offboarded"
-Set-ADUser -Identity $SamAccount -Description $note
-
-# 4. Move to Disabled OU
-Move-ADObject -Identity $user.DistinguishedName -TargetPath $DisabledOU
-
-Write-Host "OFFBOARDED: $SamAccount | Moved to $DisabledOU" -ForegroundColor Yellow
+---
