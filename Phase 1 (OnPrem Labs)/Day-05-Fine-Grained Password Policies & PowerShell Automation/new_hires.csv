@@ -1,4 +1,42 @@
-FirstName,LastName,Department,JobTitle,OU
-Priya,Sharma,IT,Systems Analyst,"OU=IT,OU=Corp,DC=Bhatt,DC=com"
-Rahul,Mehta,Finance,Finance Analyst,"OU=Finance,OU=Corp,DC=Bhatt,DC=com"
-Ananya,Iyer,IT,Service Desk,"OU=IT,OU=Corp,DC=Bhatt,DC=com"
+EmployeeID,FirstName,LastName,Department,Title,ManagerEmployeeID
+1010,Rajesh,Kulkarni,Finance,Finance Director,
+1011,Sanjay,Patil,IT,IT Director,
+1012,Amit,Saxena,Sales,Sales Director,
+1013,Kiran,Sharma,IT,IT Manager,1011
+1014,Swati,Mehta,Sales,Sales Manager,1012
+1015,Deepa,Iyer,Finance,Senior Finance Analyst,1001
+1016,Kavya,Reddy,Finance,Senior Finance Analyst,1001
+1017,Mohit,Gupta,Finance,Finance Analyst,1015
+1018,Neha,Joshi,Finance,Finance Analyst,1016
+1019,Rohan,Verma,Finance,Junior Finance Analyst,1016
+1020,Pooja,Nambiar,Finance,Junior Finance Analyst,1001
+1021,Aditya,Kumar,IT,Senior System Administrator,1013
+1022,Preethi,Subramaniam,IT,Senior IT Engineer,1013
+1023,Manish,Tiwari,IT,System Administrator,1021
+1024,Ritu,Aggarwal,IT,IT Support Specialist,1022
+1025,Siddharth,Nair,IT,IT Support Specialist,1022
+1026,Divya,Krishnan,IT,Junior IT Support,1022
+1027,Rahul,Chauhan,Sales,Senior Sales Executive,1014
+1028,Sneha,Pillai,Sales,Senior Sales Executive,1014
+1029,Gaurav,Singh,Sales,Sales Executive,1027
+1030,Tanvi,Bhatt,Sales,Sales Executive,1027
+1031,Abhishek,Rao,Sales,Sales Executive,1028
+1032,Pallavi,Joshi,Sales,Sales Associate,1028
+1033,Kunal,Desai,Sales,Sales Associate,1014
+1034,Shweta,Agarwal,Finance,Finance Analyst,1016
+1035,Nikhil,Bose,Finance,Finance Analyst,1015
+1036,Aishwarya,Rao,Finance,Junior Finance Analyst,1015
+1037,Vivek,Malhotra,Finance,Finance Analyst,1001
+1038,Suresh,Nair,IT,System Administrator,1021
+1039,Meena,Pillai,IT,IT Support Specialist,1013
+1040,Harish,Kumar,IT,Senior IT Engineer,1013
+1041,Bhavna,Sharma,IT,IT Support Specialist,1040
+1042,Lokesh,Verma,IT,Junior IT Support,1021
+1043,Ishaan,Trivedi,Sales,Sales Executive,1028
+1044,Roshni,Menon,Sales,Sales Associate,1027
+1045,Deepak,Nambiar,Sales,Senior Sales Executive,1014
+1046,Priya,Kapoor,Sales,Sales Associate,1045
+1047,Saurabh,Tripathi,Finance,Senior Finance Analyst,1001
+1048,Anjali,Menon,Finance,Finance Analyst,1047
+1049,Rohit,Sinha,IT,System Administrator,1021
+1050,Varsha,Reddy,Sales,Sales Executive,1045
