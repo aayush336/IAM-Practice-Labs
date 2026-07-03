@@ -147,7 +147,7 @@ Add-ADPermission -Identity "OU=Users,DC=Bhatt,DC=com" -User "Bhatt\Helpdesk" `
 By focusing on these specific `AccessRights` and `ExtendedRights` parameters, you can build modular scripts to delegate any administrative task without ever needing to touch a cryptic `dsacls` command line again.
 
 
-
+```
 ```
 
 ### Step 2: Delegate Reset Password + Unlock Account rights across Finance, IT, and Sales
